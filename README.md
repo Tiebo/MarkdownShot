@@ -16,10 +16,10 @@
 
 示例：
 1. 主页
-<img width="25%"  alt="image" src="https://github.com/user-attachments/assets/804b7c9f-08fb-4992-a0f0-00ae44bc8db0" />
+<img width="75%"  alt="image" src="https://github.com/user-attachments/assets/804b7c9f-08fb-4992-a0f0-00ae44bc8db0" />
 
 2. 导出
-<img width="25%"  alt="image" src="https://github.com/user-attachments/assets/48eaa52d-e55a-4fea-8f88-79f87ae107cf" />
+<img width="50%"  alt="image" src="https://github.com/user-attachments/assets/48eaa52d-e55a-4fea-8f88-79f87ae107cf" />
 
 3. 多样语法
 <img width="25%" alt="image" src="https://github.com/user-attachments/assets/a4e3fe14-2696-4b42-b28b-99b7b1ef2f9d" />
