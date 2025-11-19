@@ -3,23 +3,19 @@
 
 <head>
     <meta charset="UTF-8" />
-    <title>Markdown 转图片 Pro (Fix Edition V2)</title>
+    <title>Markdown 转图片 (MarkShot Pro)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- 字体 -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <!-- Markdown 解析 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
-    <!-- Highlight.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <link id="highlight-theme" rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
 
-    <!-- MathJax v3 -->
     <script>
         window.MathJax = {
             tex: {
@@ -37,7 +33,6 @@
     </script>
     <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js"></script>
 
-    <!-- html-to-image -->
     <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
 
     <style>
@@ -272,7 +267,6 @@
             transition: color 0.3s ease;
         }
 
-        /* [核心修复] 移除第一个元素的顶部边距，防止与 padding 叠加导致顶部空白过大 */
         #preview-content> :first-child {
             margin-top: 0 !important;
         }
@@ -296,14 +290,12 @@
             line-height: 1.75;
         }
 
-        /* 公式容器样式优化 */
         mjx-container {
             overflow-x: auto;
             overflow-y: hidden;
             max-width: 100%;
         }
 
-        /* 代码块与内联代码 */
         #preview-content :not(pre)>code {
             background: #f1f5f9;
             color: #0f172a;
@@ -356,7 +348,6 @@
             padding: 0.75em;
         }
 
-        /* 深色模式 */
         #preview-card.dark-card .window-header {
             background: rgba(255, 255, 255, 0.05);
             border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -430,6 +421,12 @@
             animation: spin 0.8s linear infinite;
         }
 
+        /* 深色 Spinner 适配浅色按钮 */
+        .spinner.dark {
+            border-color: rgba(15, 23, 42, 0.2);
+            border-top-color: #0f172a;
+        }
+
         @keyframes spin {
             to {
                 transform: rotate(360deg);
@@ -440,7 +437,7 @@
 
 <body>
     <header>
-        <h1>MarkShot <span>Pro Fix</span></h1>
+        <h1>MarkShot <span>Pro</span></h1>
         <div class="toolbar">
             <div class="control-group">
                 <label for="theme-select">代码主题</label>
@@ -463,6 +460,7 @@
                 <input id="width-input" type="number" value="800" min="400" max="1600" step="50">
             </div>
             <button id="demo-btn" class="btn btn-secondary">数学示例</button>
+            <button id="copy-btn" class="btn btn-secondary">复制图片（剪切板）</button>
             <button id="export-btn" class="btn btn-primary"><span>导出 PNG</span></button>
         </div>
     </header>
@@ -490,6 +488,7 @@
             card: document.getElementById('preview-card'),
             content: document.getElementById('preview-content'),
             exportBtn: document.getElementById('export-btn'),
+            copyBtn: document.getElementById('copy-btn'),
             demoBtn: document.getElementById('demo-btn'),
             widthInput: document.getElementById('width-input'),
             themeSelect: document.getElementById('theme-select'),
@@ -506,9 +505,7 @@
         const BG_PRESETS = {
             'default': { bg: '#ffffff', isDark: false },
             'ivory': { bg: '#fdfbf7', isDark: false },
-            'cool-blue': { bg: 'linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 100%)', isDark: false },
             'misty': { bg: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', isDark: false },
-            'purple-dream': { bg: 'linear-gradient(to top, #c471f5 0%, #fa71cd 100%)', isDark: true },
             'midnight': { bg: '#0f172a', isDark: true }
         };
 
@@ -591,6 +588,7 @@
             preset.isDark ? elements.card.classList.add('dark-card') : elements.card.classList.remove('dark-card');
         });
 
+        // 导出 PNG 功能
         elements.exportBtn.addEventListener('click', async () => {
             const btn = elements.exportBtn;
             const original = btn.innerHTML;
@@ -607,36 +605,97 @@
             finally { btn.disabled = false; btn.innerHTML = original; }
         });
 
+        // 复制到剪贴板功能
+        elements.copyBtn.addEventListener('click', async () => {
+            const btn = elements.copyBtn;
+            const originalText = btn.innerHTML;
+
+            // 更改按钮状态 (使用深色spinner适配浅色按钮)
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner dark"></div> 复制中...';
+
+            try {
+                if (window.MathJax) await MathJax.typesetPromise([elements.content]);
+
+                const blob = await htmlToImage.toBlob(elements.card, {
+                    pixelRatio: 2,
+                    backgroundColor: null,
+                    style: { transform: 'scale(1)', margin: 0 }
+                });
+
+                if (blob) {
+                    await navigator.clipboard.write([
+                        new ClipboardItem({ 'image/png': blob })
+                    ]);
+
+                    btn.innerHTML = '已复制';
+                    btn.style.borderColor = '#22c55e';
+                    btn.style.color = '#22c55e';
+                } else {
+                    throw new Error('生成图片失败');
+                }
+
+            } catch (err) {
+                console.error(err);
+                // 如果是因为没有HTTPS环境
+                if (err.name === 'NotAllowedError' || !navigator.clipboard) {
+                    alert('复制失败：浏览器限制此功能仅在 HTTPS 或 localhost 环境下可用。');
+                } else {
+                    alert('复制失败：' + err.message);
+                }
+                btn.innerHTML = '❌ 失败';
+            } finally {
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                    btn.style.borderColor = '';
+                    btn.style.color = '';
+                }, 2000);
+            }
+        });
+
         elements.demoBtn.addEventListener('click', () => {
             const demoText = `
-            # MathJax 公式测试 (Fix)
+# 斐波那契数列
 
-            公式应正确居中渲染，不应有黄色背景（代码块）。
+这是一个使用 **递归** 算法计算斐波那契数列的示例。
 
-            ## 1. 高斯积分
-            $$
-            \\int_{-\\infty}^{+\\infty} e^{-x^2} dx = \\sqrt{\\pi}
-            $$
+### Python 实现
 
-            ## 2. 麦克斯韦方程 (Aligned)
-            注意：这里使用了 aligned 环境进行对齐。
+\`\`\`python
+def fibonacci(n):
+    """
+    计算第 n 个斐波那契数
+    """
+    if n <= 0:
+        return 0
+    elif n == 1:
+        return 1
+    else:
+        return fibonacci(n-1) + fibonacci(n-2)
 
-            $$
-            \\begin{aligned}
-            \\nabla \\cdot \\mathbf{E} &= \\frac{\\rho}{\\varepsilon_0} \\\\
-            \\nabla \\cdot \\mathbf{B} &= 0 \\\\
-            \\nabla \\times \\mathbf{E} &= -\\frac{\\partial \\mathbf{B}}{\\partial t} \\\\
-            \\nabla \\times \\mathbf{B} &= \\mu_0\\mathbf{J} + \\mu_0\\varepsilon_0\\frac{\\partial \\mathbf{E}}{\\partial t}
-            \\end{aligned}
-            $$
+# 打印前10个数
+for i in range(10):
+    print(fibonacci(i))
+\`\`\`
 
-            ## 3. 矩阵
-            $$
-            \\mathbf{M} = \\begin{pmatrix}
-            \\cos \\theta & -\\sin \\theta \\\\
-            \\sin \\theta & \\cos \\theta
-            \\end{pmatrix}
-            $$
+### 算法复杂度
+
+时间复杂度分析如下：
+
+$$
+T(n) = T(n-1) + T(n-2) + O(1)
+$$
+
+其解为指数级增长：
+$$
+O(1.618^n)
+$$
+
+### 也可以试试切换背景？
+
+> 不同的背景会带来完全不同的阅读体验。试着在上方工具栏选择 **“渐变·迷雾”** 或 **“纯色·深夜”** 看看效果。
+
             `;
 
             elements.input.value = stripIndent(demoText);
