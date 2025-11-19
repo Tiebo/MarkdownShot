@@ -1,5 +1,7 @@
 # MarkShot
 
+欢迎使用：[MarkShot](https://markshot.pages.dev/)
+
 ## 开发原因
 
 今天需要复制一段很长的markdown然后截图，但是发现markdown是在太长了，很难截图完整，于是搓了一个这样的简易网站
