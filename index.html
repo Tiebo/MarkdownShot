@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Markdown 转图片 Pro (Fix Edition V2)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- 字体 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Markdown 解析 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- Highlight.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <link id="highlight-theme" rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+
+    <!-- MathJax v3 -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                packages: { '[+]': ['ams'] },
+                tags: 'ams'
+            },
+            chtml: { scale: 1 },
+            options: {
+                processHtmlClass: 'tex2jax_process|math-content',
+                ignoreHtmlClass: 'tex2jax_ignore'
+            }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js"></script>
+
+    <!-- html-to-image -->
+    <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #6366f1;
+            --bg-body: #f1f5f9;
+            --bg-card: #ffffff;
+            --text-main: #1e293b;
+            --text-sub: #64748b;
+            --border: #e2e8f0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Inter", sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header {
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 18px;
+            font-weight: 700;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #0f172a;
+        }
+
+        h1 span {
+            font-size: 12px;
+            background: #f1f5f9;
+            padding: 2px 8px;
+            border-radius: 99px;
+            color: var(--text-sub);
+            font-weight: 500;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 4px 8px;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-sub);
+            white-space: nowrap;
+        }
+
+        select,
+        input[type="number"] {
+            background: transparent;
+            border: none;
+            font-size: 13px;
+            color: var(--text-main);
+            font-family: inherit;
+            outline: none;
+            cursor: pointer;
+        }
+
+        select {
+            padding-right: 4px;
+            font-weight: 500;
+        }
+
+        input[type="number"] {
+            width: 60px;
+            font-weight: 500;
+        }
+
+        .btn {
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: #0f172a;
+            color: white;
+            box-shadow: 0 2px 4px rgba(15, 23, 42, 0.1);
+        }
+
+        .btn-primary:hover {
+            background: #334155;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: var(--text-main);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+        }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 1.2fr;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .editor-pane {
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border);
+            background: white;
+        }
+
+        textarea {
+            flex: 1;
+            width: 100%;
+            border: none;
+            resize: none;
+            padding: 24px;
+            font-size: 15px;
+            font-family: "SFMono-Regular", Consolas, monospace;
+            line-height: 1.6;
+            outline: none;
+            color: #334155;
+        }
+
+        .preview-pane {
+            background: #e2e8f0;
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 20px 20px;
+            padding: 40px;
+            overflow: auto;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+        }
+
+        #preview-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+            width: 800px;
+            max-width: none;
+            display: flex;
+            flex-direction: column;
+            transition: width 0.3s ease, background 0.3s ease, color 0.3s ease;
+            overflow: hidden;
+        }
+
+        .window-header {
+            height: 36px;
+            background: rgba(248, 250, 252, 0.8);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 8px;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .dot.red {
+            background: #ff5f56;
+            border: 1px solid #e0443e;
+        }
+
+        .dot.yellow {
+            background: #ffbd2e;
+            border: 1px solid #dea123;
+        }
+
+        .dot.green {
+            background: #27c93f;
+            border: 1px solid #1aab29;
+        }
+
+        .window-title {
+            flex: 1;
+            text-align: center;
+            font-size: 12px;
+            color: #94a3b8;
+            font-weight: 500;
+            margin-right: 50px;
+        }
+
+        #preview-content {
+            padding: 32px 40px;
+            color: #334155;
+            transition: color 0.3s ease;
+        }
+
+        /* [核心修复] 移除第一个元素的顶部边距，防止与 padding 叠加导致顶部空白过大 */
+        #preview-content> :first-child {
+            margin-top: 0 !important;
+        }
+
+        #preview-content h1,
+        h2,
+        h3 {
+            margin-top: 1.5em;
+            margin-bottom: 0.6em;
+            line-height: 1.3;
+        }
+
+        #preview-content h1 {
+            font-size: 2.2em;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 0.3em;
+        }
+
+        #preview-content p {
+            margin: 1em 0;
+            line-height: 1.75;
+        }
+
+        /* 公式容器样式优化 */
+        mjx-container {
+            overflow-x: auto;
+            overflow-y: hidden;
+            max-width: 100%;
+        }
+
+        /* 代码块与内联代码 */
+        #preview-content :not(pre)>code {
+            background: #f1f5f9;
+            color: #0f172a;
+            padding: 0.2em 0.4em;
+            border-radius: 6px;
+            font-size: 0.9em;
+            font-family: "SFMono-Regular", Consolas, monospace;
+            border: 1px solid #e2e8f0;
+        }
+
+        #preview-content pre {
+            margin: 1.2em 0;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+
+        #preview-content pre code.hljs {
+            padding: 1.5em;
+            font-family: "SFMono-Regular", Consolas, monospace;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        #preview-content blockquote {
+            border-left: 4px solid var(--primary);
+            background: #f8fafc;
+            margin: 1.5em 0;
+            padding: 1em 1.2em;
+            color: #475569;
+            border-radius: 0 8px 8px 0;
+        }
+
+        #preview-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5em 0;
+            font-size: 0.95em;
+        }
+
+        #preview-content th {
+            background: #f8fafc;
+            font-weight: 600;
+            text-align: left;
+        }
+
+        #preview-content th,
+        #preview-content td {
+            border: 1px solid #e2e8f0;
+            padding: 0.75em;
+        }
+
+        /* 深色模式 */
+        #preview-card.dark-card .window-header {
+            background: rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        #preview-card.dark-card #preview-content {
+            color: #e2e8f0;
+        }
+
+        #preview-card.dark-card #preview-content h1,
+        #preview-card.dark-card #preview-content h2 {
+            color: #f8fafc;
+            border-bottom-color: #475569;
+        }
+
+        #preview-card.dark-card #preview-content :not(pre)>code {
+            background: rgba(0, 0, 0, 0.3);
+            color: #e2e8f0;
+            border-color: #475569;
+        }
+
+        #preview-card.dark-card #preview-content blockquote {
+            background: rgba(0, 0, 0, 0.2);
+            color: #94a3b8;
+        }
+
+        #preview-card.dark-card #preview-content th {
+            background: rgba(255, 255, 255, 0.05);
+            color: #f1f5f9;
+        }
+
+        #preview-card.dark-card #preview-content th,
+        #preview-card.dark-card #preview-content td {
+            border-color: #475569;
+        }
+
+        @media (max-width: 900px) {
+            .main-container {
+                grid-template-columns: 1fr;
+                overflow-y: auto;
+            }
+
+            .editor-pane {
+                height: 40vh;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .preview-pane {
+                height: auto;
+                min-height: 60vh;
+                align-items: flex-start;
+            }
+
+            #preview-card {
+                width: 100% !important;
+                margin-bottom: 40px;
+            }
+
+            .window-header {
+                display: none;
+            }
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>MarkShot <span>Pro Fix</span></h1>
+        <div class="toolbar">
+            <div class="control-group">
+                <label for="theme-select">代码主题</label>
+                <select id="theme-select">
+                    <option value="dark">Atom One Dark</option>
+                    <option value="light">GitHub Light</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="bg-select">卡片背景</label>
+                <select id="bg-select">
+                    <option value="default">纯白 (Default)</option>
+                    <option value="ivory">米白 (Ivory)</option>
+                    <option value="misty">渐变·迷雾 (Misty)</option>
+                    <option value="midnight">纯色·深夜 (Dark)</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="width-input">宽度</label>
+                <input id="width-input" type="number" value="800" min="400" max="1600" step="50">
+            </div>
+            <button id="demo-btn" class="btn btn-secondary">数学示例</button>
+            <button id="export-btn" class="btn btn-primary"><span>导出 PNG</span></button>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <div class="editor-pane">
+            <textarea id="markdown-input" placeholder="# 输入区\n\n$$ f(x) $$" spellcheck="false"></textarea>
+        </div>
+        <div class="preview-pane">
+            <div id="preview-card">
+                <div class="window-header">
+                    <div class="dot red"></div>
+                    <div class="dot yellow"></div>
+                    <div class="dot green"></div>
+                    <div class="window-title">Preview</div>
+                </div>
+                <div id="preview-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const elements = {
+            input: document.getElementById('markdown-input'),
+            card: document.getElementById('preview-card'),
+            content: document.getElementById('preview-content'),
+            exportBtn: document.getElementById('export-btn'),
+            demoBtn: document.getElementById('demo-btn'),
+            widthInput: document.getElementById('width-input'),
+            themeSelect: document.getElementById('theme-select'),
+            bgSelect: document.getElementById('bg-select'),
+            themeLink: document.getElementById('highlight-theme')
+        };
+
+        marked.setOptions({ gfm: true, breaks: true });
+
+        const THEMES = {
+            dark: 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css',
+            light: 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css'
+        };
+        const BG_PRESETS = {
+            'default': { bg: '#ffffff', isDark: false },
+            'ivory': { bg: '#fdfbf7', isDark: false },
+            'cool-blue': { bg: 'linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 100%)', isDark: false },
+            'misty': { bg: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', isDark: false },
+            'purple-dream': { bg: 'linear-gradient(to top, #c471f5 0%, #fa71cd 100%)', isDark: true },
+            'midnight': { bg: '#0f172a', isDark: true }
+        };
+
+        function stripIndent(str) {
+            const lines = str.split('\n');
+            if (lines[0].trim() === '') lines.shift();
+            let minIndent = Infinity;
+            for (const line of lines) {
+                if (line.trim() === '') continue;
+                const indent = line.match(/^\s*/)[0].length;
+                if (indent < minIndent) minIndent = indent;
+            }
+            if (minIndent === Infinity) return str;
+            return lines.map(line => {
+                if (line.trim() === '') return '';
+                return line.substring(minIndent);
+            }).join('\n');
+        }
+
+        function splitMathBlocks(raw) {
+            const blocks = [];
+            let index = 0;
+            const prefix = '[[MATH_BLOCK_';
+            const regex = /\$\$([\s\S]*?)\$\$/g;
+            const text = raw.replace(regex, (match) => {
+                const key = `${prefix}${index++}]]`;
+                blocks.push({ key, tex: match });
+                return key;
+            });
+            return { text, blocks };
+        }
+
+        function restoreMathBlocks(html, blocks) {
+            let result = html;
+            blocks.forEach(({ key, tex }) => {
+                result = result.replace(key, tex);
+            });
+            return result;
+        }
+
+        async function render() {
+            const raw = elements.input.value;
+            if (!raw.trim()) {
+                elements.content.innerHTML = '<p style="color:#94a3b8;text-align:center;margin-top:40px">...</p>';
+                return;
+            }
+
+            const { text, blocks } = splitMathBlocks(raw);
+            const html = marked.parse(text);
+            const finalHtml = restoreMathBlocks(html, blocks);
+
+            elements.content.innerHTML = finalHtml;
+
+            elements.content.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
+
+            if (window.MathJax && MathJax.typesetPromise) {
+                try {
+                    MathJax.typesetClear([elements.content]);
+                    await MathJax.typesetPromise([elements.content]);
+                } catch (e) {
+                    console.error('MathJax error:', e);
+                }
+            }
+        }
+
+        elements.input.addEventListener('input', render);
+        elements.widthInput.addEventListener('input', (e) => {
+            const w = parseInt(e.target.value);
+            if (w >= 400) elements.card.style.width = `${w}px`;
+        });
+        elements.themeSelect.addEventListener('change', (e) => {
+            const url = THEMES[e.target.value];
+            if (url) { elements.themeLink.href = url; render(); }
+        });
+        elements.bgSelect.addEventListener('change', (e) => {
+            const preset = BG_PRESETS[e.target.value] || BG_PRESETS['default'];
+            elements.card.style.background = preset.bg;
+            preset.isDark ? elements.card.classList.add('dark-card') : elements.card.classList.remove('dark-card');
+        });
+
+        elements.exportBtn.addEventListener('click', async () => {
+            const btn = elements.exportBtn;
+            const original = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>';
+            try {
+                if (window.MathJax) await MathJax.typesetPromise([elements.content]);
+                const dataUrl = await htmlToImage.toPng(elements.card, {
+                    pixelRatio: 2, backgroundColor: null, style: { transform: 'scale(1)', margin: 0 }
+                });
+                const link = document.createElement('a');
+                link.download = `math_note.png`;
+                link.href = dataUrl; link.click();
+            } catch (err) { alert('导出失败'); }
+            finally { btn.disabled = false; btn.innerHTML = original; }
+        });
+
+        elements.demoBtn.addEventListener('click', () => {
+            const demoText = `
+            # MathJax 公式测试 (Fix)
+
+            公式应正确居中渲染，不应有黄色背景（代码块）。
+
+            ## 1. 高斯积分
+            $$
+            \\int_{-\\infty}^{+\\infty} e^{-x^2} dx = \\sqrt{\\pi}
+            $$
+
+            ## 2. 麦克斯韦方程 (Aligned)
+            注意：这里使用了 aligned 环境进行对齐。
+
+            $$
+            \\begin{aligned}
+            \\nabla \\cdot \\mathbf{E} &= \\frac{\\rho}{\\varepsilon_0} \\\\
+            \\nabla \\cdot \\mathbf{B} &= 0 \\\\
+            \\nabla \\times \\mathbf{E} &= -\\frac{\\partial \\mathbf{B}}{\\partial t} \\\\
+            \\nabla \\times \\mathbf{B} &= \\mu_0\\mathbf{J} + \\mu_0\\varepsilon_0\\frac{\\partial \\mathbf{E}}{\\partial t}
+            \\end{aligned}
+            $$
+
+            ## 3. 矩阵
+            $$
+            \\mathbf{M} = \\begin{pmatrix}
+            \\cos \\theta & -\\sin \\theta \\\\
+            \\sin \\theta & \\cos \\theta
+            \\end{pmatrix}
+            $$
+            `;
+
+            elements.input.value = stripIndent(demoText);
+            render();
+        });
+
+        render();
+    </script>
+</body>
+
+</html>
