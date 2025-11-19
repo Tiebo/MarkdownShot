@@ -4,8 +4,11 @@
 <head>
     <meta charset="UTF-8" />
     <title>Markdown 转图片 (MarkShot Pro)</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjggMTI4Ij48cmVjdCB3aWR0aD0iMTI4IiBoZWlnaHQ9IjEyOCIgcng9IjI4IiBmaWxsPSIjNjM2NmYxIi8+PHBhdGggZD0iTTM0IDM4djUyaDE2VjYybDE0IDE0IDE0LTE0djI4aDE2VjM4SDc0TDY0IDUwIDU0IDM4SDM0eiIgZmlsbD0iI2ZmZmZmZiIvPjwvc3ZnPg==" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -483,6 +486,7 @@
     </div>
 
     <script>
+        // 1. 获取 DOM 元素
         const elements = {
             input: document.getElementById('markdown-input'),
             card: document.getElementById('preview-card'),
@@ -496,12 +500,18 @@
             themeLink: document.getElementById('highlight-theme')
         };
 
-        marked.setOptions({ gfm: true, breaks: true });
+        // 2. 配置 Marked 选项
+        marked.setOptions({
+            gfm: true,
+            breaks: true
+        });
 
+        // 3. 主题与背景配置
         const THEMES = {
             dark: 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css',
             light: 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css'
         };
+
         const BG_PRESETS = {
             'default': { bg: '#ffffff', isDark: false },
             'ivory': { bg: '#fdfbf7', isDark: false },
@@ -509,6 +519,22 @@
             'midnight': { bg: '#0f172a', isDark: true }
         };
 
+        // 4. 工具函数
+
+        // 防抖：防止打字卡顿
+        function debounce(func, wait) {
+            let timeout;
+            return function (...args) {
+                const context = this;
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(context, args), wait);
+            };
+        }
+
+        // 强制等待：让 UI 有机会渲染 Loading 动画
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        // 去除首行缩进
         function stripIndent(str) {
             const lines = str.split('\n');
             if (lines[0].trim() === '') lines.shift();
@@ -525,6 +551,7 @@
             }).join('\n');
         }
 
+        // 保护数学公式不被 Marked 解析
         function splitMathBlocks(raw) {
             const blocks = [];
             let index = 0;
@@ -546,8 +573,10 @@
             return result;
         }
 
+        // 5. 核心渲染函数
         async function render() {
             const raw = elements.input.value;
+
             if (!raw.trim()) {
                 elements.content.innerHTML = '<p style="color:#94a3b8;text-align:center;margin-top:40px">...</p>';
                 return;
@@ -573,36 +602,69 @@
             }
         }
 
-        elements.input.addEventListener('input', render);
+        // 6. 事件监听
+
+        // 输入监听：使用 debounce 延迟 300ms，解决打字卡顿
+        elements.input.addEventListener('input', debounce(render, 300));
+
+        // 宽度调整
         elements.widthInput.addEventListener('input', (e) => {
             const w = parseInt(e.target.value);
             if (w >= 400) elements.card.style.width = `${w}px`;
         });
+
+        // 主题切换
         elements.themeSelect.addEventListener('change', (e) => {
             const url = THEMES[e.target.value];
-            if (url) { elements.themeLink.href = url; render(); }
+            if (url) {
+                elements.themeLink.href = url;
+                render();
+            }
         });
+
+        // 背景切换
         elements.bgSelect.addEventListener('change', (e) => {
             const preset = BG_PRESETS[e.target.value] || BG_PRESETS['default'];
             elements.card.style.background = preset.bg;
-            preset.isDark ? elements.card.classList.add('dark-card') : elements.card.classList.remove('dark-card');
+            if (preset.isDark) {
+                elements.card.classList.add('dark-card');
+            } else {
+                elements.card.classList.remove('dark-card');
+            }
         });
 
         // 导出 PNG 功能
         elements.exportBtn.addEventListener('click', async () => {
             const btn = elements.exportBtn;
             const original = btn.innerHTML;
-            btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>';
+
+            // 1. 改变 UI
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner"></div>';
+
+            // 2. 强制让出主线程 50ms，让 Loading 动画显示出来
+            await sleep(50);
+
             try {
                 if (window.MathJax) await MathJax.typesetPromise([elements.content]);
+
                 const dataUrl = await htmlToImage.toPng(elements.card, {
-                    pixelRatio: 2, backgroundColor: null, style: { transform: 'scale(1)', margin: 0 }
+                    pixelRatio: 2,
+                    backgroundColor: null,
+                    style: { transform: 'scale(1)', margin: 0 }
                 });
+
                 const link = document.createElement('a');
-                link.download = `math_note.png`;
-                link.href = dataUrl; link.click();
-            } catch (err) { alert('导出失败'); }
-            finally { btn.disabled = false; btn.innerHTML = original; }
+                link.download = `math_note_${Date.now()}.png`;
+                link.href = dataUrl;
+                link.click();
+            } catch (err) {
+                alert('导出失败');
+                console.error(err);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = original;
+            }
         });
 
         // 复制到剪贴板功能
@@ -610,9 +672,12 @@
             const btn = elements.copyBtn;
             const originalText = btn.innerHTML;
 
-            // 更改按钮状态 (使用深色spinner适配浅色按钮)
+            // 1. 改变 UI
             btn.disabled = true;
             btn.innerHTML = '<div class="spinner dark"></div> 复制中...';
+
+            // 2. 强制让出主线程 50ms，让 Loading 动画显示出来
+            await sleep(50);
 
             try {
                 if (window.MathJax) await MathJax.typesetPromise([elements.content]);
@@ -628,7 +693,7 @@
                         new ClipboardItem({ 'image/png': blob })
                     ]);
 
-                    btn.innerHTML = '已复制';
+                    btn.innerHTML = '✅ 已复制';
                     btn.style.borderColor = '#22c55e';
                     btn.style.color = '#22c55e';
                 } else {
@@ -637,9 +702,8 @@
 
             } catch (err) {
                 console.error(err);
-                // 如果是因为没有HTTPS环境
                 if (err.name === 'NotAllowedError' || !navigator.clipboard) {
-                    alert('复制失败：浏览器限制此功能仅在 HTTPS 或 localhost 环境下可用。');
+                    alert('复制失败：请在 HTTPS 或 localhost 环境下使用。');
                 } else {
                     alert('复制失败：' + err.message);
                 }
@@ -654,6 +718,7 @@
             }
         });
 
+        // 示例按钮
         elements.demoBtn.addEventListener('click', () => {
             const demoText = `
 # 斐波那契数列
@@ -695,13 +760,13 @@ $$
 ### 也可以试试切换背景？
 
 > 不同的背景会带来完全不同的阅读体验。试着在上方工具栏选择 **“渐变·迷雾”** 或 **“纯色·深夜”** 看看效果。
-
-            `;
+        `;
 
             elements.input.value = stripIndent(demoText);
             render();
         });
 
+        // 7. 初始化渲染
         render();
     </script>
 </body>
