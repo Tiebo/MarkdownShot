@@ -175,17 +175,41 @@
         }
 
         .main-container {
-            display: grid;
-            grid-template-columns: 1fr 1.2fr;
+            display: flex;
             flex: 1;
-            overflow: hidden;
+            overflow-y: hidden;
+            overflow-x: auto;
         }
 
         .editor-pane {
+            flex: 0 1 800px;
+
+            min-width: 400px;
+            max-width: 800px;
+
             display: flex;
             flex-direction: column;
             border-right: 1px solid var(--border);
             background: white;
+            z-index: 5;
+            position: sticky;
+            left: 0;
+        }
+
+        .preview-pane {
+            flex: 1 0 auto;
+            min-width: fit-content;
+
+            background: #e2e8f0;
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 20px 20px;
+            padding: 25px 30px;
+            overflow-y: auto;
+            overflow-x: hidden;
+
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
         }
 
         textarea {
@@ -201,22 +225,13 @@
             color: #334155;
         }
 
-        .preview-pane {
-            background: #e2e8f0;
-            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
-            background-size: 20px 20px;
-            padding: 40px;
-            overflow: auto;
-            display: flex;
-            align-items: flex-start;
-            justify-content: center;
-        }
+
 
         #preview-card {
             background: white;
             border-radius: 12px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
-            width: 800px;
+            width: 100%;
             max-width: none;
             display: flex;
             flex-direction: column;
@@ -265,9 +280,11 @@
         }
 
         #preview-content {
-            padding: 32px 40px;
+            padding: 30px 32px;
             color: #334155;
             transition: color 0.3s ease;
+            flex-shrink: 0;
+            overflow: auto;
         }
 
         #preview-content> :first-child {
@@ -313,6 +330,7 @@
             margin: 1.2em 0;
             border-radius: 8px;
             overflow: hidden;
+            overflow-y: hidden;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
         }
 
@@ -321,6 +339,9 @@
             font-family: "SFMono-Regular", Consolas, monospace;
             font-size: 14px;
             line-height: 1.6;
+
+            white-space: pre-wrap;
+            word-wrap: break-word;
         }
 
         #preview-content blockquote {
@@ -375,6 +396,15 @@
         #preview-card.dark-card #preview-content blockquote {
             background: rgba(0, 0, 0, 0.2);
             color: #94a3b8;
+        }
+
+        #preview-content img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 1.5em auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
 
         #preview-card.dark-card #preview-content th {
@@ -462,7 +492,7 @@
                 <label for="width-input">宽度</label>
                 <input id="width-input" type="number" value="800" min="400" max="1600" step="50">
             </div>
-            <button id="demo-btn" class="btn btn-secondary">数学示例</button>
+            <button id="demo-btn" class="btn btn-secondary">示例</button>
             <button id="copy-btn" class="btn btn-secondary">复制图片（剪切板）</button>
             <button id="export-btn" class="btn btn-primary"><span>导出 PNG</span></button>
         </div>
@@ -478,7 +508,6 @@
                     <div class="dot red"></div>
                     <div class="dot yellow"></div>
                     <div class="dot green"></div>
-                    <div class="window-title">Preview</div>
                 </div>
                 <div id="preview-content"></div>
             </div>
@@ -551,17 +580,25 @@
             }).join('\n');
         }
 
+        // 5. 核心逻辑：数学公式与渲染
+
         // 保护数学公式不被 Marked 解析
         function splitMathBlocks(raw) {
             const blocks = [];
             let index = 0;
             const prefix = '[[MATH_BLOCK_';
-            const regex = /\$\$([\s\S]*?)\$\$/g;
-            const text = raw.replace(regex, (match) => {
-                const key = `${prefix}${index++}]]`;
-                blocks.push({ key, tex: match });
-                return key;
+            const regex = /(```[\s\S]*?```|`[^`]*`)|(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\))/g;
+
+            const text = raw.replace(regex, (match, code, math) => {
+                if (code) return code;
+                if (math) {
+                    const key = `${prefix}${index++}]]`;
+                    blocks.push({ key, tex: math });
+                    return key;
+                }
+                return match;
             });
+
             return { text, blocks };
         }
 
@@ -573,7 +610,6 @@
             return result;
         }
 
-        // 5. 核心渲染函数
         async function render() {
             const raw = elements.input.value;
 
@@ -602,47 +638,153 @@
             }
         }
 
-        // 6. 事件监听
+        // 6. 持久化存储与状态管理 + 默认数据配置
 
-        // 输入监听：使用 debounce 延迟 300ms，解决打字卡顿
-        elements.input.addEventListener('input', debounce(render, 300));
+        const STORAGE_KEY = 'markshot_config_v1';
 
-        // 宽度调整
-        elements.widthInput.addEventListener('input', (e) => {
-            const w = parseInt(e.target.value);
+        // === 核心修改：将示例文字提取为全局常量 ===
+        const DEFAULT_CONTENT = stripIndent(`
+        # 斐波那契数列
+
+        这是一个使用 **递归** 算法计算斐波那契数列的示例。
+
+        ### Python 实现
+
+        \`\`\`python
+        def fibonacci(n):
+            """
+            计算第 n 个斐波那契数
+            """
+            if n <= 0:
+                return 0
+            elif n == 1:
+                return 1
+            else:
+                return fibonacci(n-1) + fibonacci(n-2)
+
+        # 打印前10个数
+        for i in range(10):
+            print(fibonacci(i))
+        \`\`\`
+
+        ### 算法复杂度
+
+        时间复杂度分析如下：
+
+        \\[
+        T(n) = T(n-1) + T(n-2) + O(1)
+        \\]
+
+        其解为指数级增长：
+        $$
+        O(1.618^n)
+        $$
+
+        ### 也可以试试切换背景？
+
+        > 不同的背景会带来完全不同的阅读体验。试着在上方工具栏选择 **“渐变·迷雾”** 或 **“纯色·深夜”** 看看效果。
+        `);
+
+        function saveState() {
+            const state = {
+                content: elements.input.value,
+                theme: elements.themeSelect.value,
+                bg: elements.bgSelect.value,
+                width: elements.widthInput.value
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }
+
+        function updateWidth(val) {
+            const w = parseInt(val);
             if (w >= 400) elements.card.style.width = `${w}px`;
-        });
+        }
 
-        // 主题切换
-        elements.themeSelect.addEventListener('change', (e) => {
-            const url = THEMES[e.target.value];
-            if (url) {
-                elements.themeLink.href = url;
-                render();
-            }
-        });
+        function updateTheme(val) {
+            const url = THEMES[val];
+            if (url) elements.themeLink.href = url;
+        }
 
-        // 背景切换
-        elements.bgSelect.addEventListener('change', (e) => {
-            const preset = BG_PRESETS[e.target.value] || BG_PRESETS['default'];
+        function updateBg(val) {
+            const preset = BG_PRESETS[val] || BG_PRESETS['default'];
             elements.card.style.background = preset.bg;
             if (preset.isDark) {
                 elements.card.classList.add('dark-card');
             } else {
                 elements.card.classList.remove('dark-card');
             }
+        }
+
+        function loadState() {
+            const raw = localStorage.getItem(STORAGE_KEY);
+
+            // === 核心修改：如果没有缓存，直接加载默认数据 ===
+            if (!raw) {
+                elements.input.value = DEFAULT_CONTENT;
+                return;
+            }
+
+            try {
+                const state = JSON.parse(raw);
+
+                // === 核心修改：如果缓存内容为空字符串，也加载默认数据 ===
+                if (state.content !== undefined && state.content.trim() !== "") {
+                    elements.input.value = state.content;
+                } else {
+                    elements.input.value = DEFAULT_CONTENT;
+                }
+
+                if (state.width) {
+                    elements.widthInput.value = state.width;
+                    updateWidth(state.width);
+                }
+                if (state.theme) {
+                    elements.themeSelect.value = state.theme;
+                    updateTheme(state.theme);
+                }
+                if (state.bg) {
+                    elements.bgSelect.value = state.bg;
+                    updateBg(state.bg);
+                }
+
+            } catch (e) {
+                console.error("读取缓存失败", e);
+                // 出错时也加载默认数据
+                elements.input.value = DEFAULT_CONTENT;
+            }
+        }
+
+        // 7. 事件监听
+
+        const debouncedRender = debounce(() => {
+            render();
+            saveState();
+        }, 300);
+
+        elements.input.addEventListener('input', debouncedRender);
+
+        elements.widthInput.addEventListener('input', (e) => {
+            updateWidth(e.target.value);
+            saveState();
         });
 
-        // 导出 PNG 功能
+        elements.themeSelect.addEventListener('change', (e) => {
+            updateTheme(e.target.value);
+            render();
+            saveState();
+        });
+
+        elements.bgSelect.addEventListener('change', (e) => {
+            updateBg(e.target.value);
+            saveState();
+        });
+
         elements.exportBtn.addEventListener('click', async () => {
             const btn = elements.exportBtn;
             const original = btn.innerHTML;
 
-            // 1. 改变 UI
             btn.disabled = true;
             btn.innerHTML = '<div class="spinner"></div>';
-
-            // 2. 强制让出主线程 50ms，让 Loading 动画显示出来
             await sleep(50);
 
             try {
@@ -667,16 +809,12 @@
             }
         });
 
-        // 复制到剪贴板功能
         elements.copyBtn.addEventListener('click', async () => {
             const btn = elements.copyBtn;
             const originalText = btn.innerHTML;
 
-            // 1. 改变 UI
             btn.disabled = true;
             btn.innerHTML = '<div class="spinner dark"></div> 复制中...';
-
-            // 2. 强制让出主线程 50ms，让 Loading 动画显示出来
             await sleep(50);
 
             try {
@@ -718,55 +856,15 @@
             }
         });
 
-        // 示例按钮
+        // === 核心修改：使用全局常量 ===
         elements.demoBtn.addEventListener('click', () => {
-            const demoText = `
-# 斐波那契数列
-
-这是一个使用 **递归** 算法计算斐波那契数列的示例。
-
-### Python 实现
-
-\`\`\`python
-def fibonacci(n):
-    """
-    计算第 n 个斐波那契数
-    """
-    if n <= 0:
-        return 0
-    elif n == 1:
-        return 1
-    else:
-        return fibonacci(n-1) + fibonacci(n-2)
-
-# 打印前10个数
-for i in range(10):
-    print(fibonacci(i))
-\`\`\`
-
-### 算法复杂度
-
-时间复杂度分析如下：
-
-$$
-T(n) = T(n-1) + T(n-2) + O(1)
-$$
-
-其解为指数级增长：
-$$
-O(1.618^n)
-$$
-
-### 也可以试试切换背景？
-
-> 不同的背景会带来完全不同的阅读体验。试着在上方工具栏选择 **“渐变·迷雾”** 或 **“纯色·深夜”** 看看效果。
-        `;
-
-            elements.input.value = stripIndent(demoText);
+            elements.input.value = DEFAULT_CONTENT;
             render();
+            saveState();
         });
 
-        // 7. 初始化渲染
+        // 8. 初始化流程
+        loadState();
         render();
     </script>
 </body>
